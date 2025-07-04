@@ -1,388 +1,367 @@
 import pandas as pd
 import numpy as np
-from typing import Dict, Tuple, List
-import itertools
+import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 import warnings
+import talib
 warnings.filterwarnings('ignore')
 
-def load_txf_data(file_path: str) -> pd.DataFrame:
-    """
-    Load TXF 5-minute K data from txt format and convert to datetime index.
+def load_txf_data(file_path):
+    """Load TXF 1-minute data from file"""
+    print(f"Loading data from {file_path}...")
     
-    Args:
-        file_path: Path to the TXF data file
-        
-    Returns:
-        DataFrame with datetime index and OHLCV data
-    """
-    df = pd.read_csv(file_path)
-    df['Datetime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
-    df.set_index('Datetime', inplace=True)
-    df = df[['Open', 'High', 'Low', 'Close', 'TotalVolume']]
-    df.columns = ['open', 'high', 'low', 'close', 'volume']  # Standardize column names for technical indicators
+    # Read the data file
+    df = pd.read_csv(file_path, sep='\t')
+    
+    # Convert timestamp to datetime
+    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    
+    # Set timestamp as index
+    df.set_index('timestamp', inplace=True)
+    
+    # Sort by timestamp
+    df.sort_index(inplace=True)
+    
+    print(f"Data loaded: {len(df)} records from {df.index.min()} to {df.index.max()}")
     return df
 
-def convert_to_4h_data(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Convert 1-minute data to 4-hour (240-minute) data.
+def convert_to_4h_data(df_1min):
+    """Convert 1-minute data to 4-hour data"""
+    print("Converting to 4-hour data...")
     
-    Args:
-        df: DataFrame with 1-minute OHLCV data
-        
-    Returns:
-        DataFrame with 4-hour OHLCV data
-    """
-    df = df.copy()
+    # Resample to 4-hour intervals
+    df_4h = df_1min.resample('4H').agg({
+        'open': 'first',
+        'high': 'max',
+        'low': 'min',
+        'close': 'last',
+        'volume': 'sum'
+    }).dropna()
     
-    # Reset index to get datetime as column for grouping
-    df = df.reset_index()
-    
-    # Create 4-hour periods
-    # Group by date and 4-hour blocks (240 minutes)
-    df['date'] = df['Datetime'].dt.date
-    df['hour_block'] = df['Datetime'].dt.hour // 4  # 0-5 for 4-hour blocks
-    df['period'] = df['date'].astype(str) + '_' + df['hour_block'].astype(str)
-    
-    # Group by period and aggregate
-    grouped = df.groupby('period').agg({
-        'Datetime': 'first',  # First datetime of the period
-        'open': 'first',      # First open price
-        'high': 'max',        # Maximum high price
-        'low': 'min',         # Minimum low price
-        'close': 'last',      # Last close price
-        'volume': 'sum'       # Sum of volume
-    })
-    
-    # Set datetime as index
-    grouped = grouped.set_index('Datetime')
-    
-    # Sort by datetime
-    grouped = grouped.sort_index()
-    
-    print(f"Converted {len(df)} 1-minute records to {len(grouped)} 4-hour records")
-    print(f"Date range: {grouped.index[0]} to {grouped.index[-1]}")
-    
-    return grouped
+    print(f"4-hour data created: {len(df_4h)} records")
+    return df_4h
 
-def calculate_bollinger_bands(df: pd.DataFrame, window: int = 20, num_std: float = 2.0) -> pd.DataFrame:
-    """
-    Calculate Bollinger Bands indicators.
-    
-    Args:
-        df: DataFrame with OHLCV data
-        window: Rolling window for moving average
-        num_std: Number of standard deviations for bands
-        
-    Returns:
-        DataFrame with BB indicators added
-    """
+def calculate_technical_indicators_talib(df):
+    """Calculate technical indicators using TA-Lib"""
     df = df.copy()
-    df['bb_middle'] = df['close'].rolling(window=window).mean()
-    bb_std = df['close'].rolling(window=window).std()
-    df['bb_upper'] = df['bb_middle'] + (bb_std * num_std)
-    df['bb_lower'] = df['bb_middle'] - (bb_std * num_std)
-    df['bb_width'] = (df['bb_upper'] - df['bb_lower']) / df['bb_middle']
-    df['bb_position'] = (df['close'] - df['bb_lower']) / (df['bb_upper'] - df['bb_lower'])
-    return df
-
-def calculate_rsi(df: pd.DataFrame, window: int = 14) -> pd.DataFrame:
-    """
-    Calculate RSI indicator.
     
-    Args:
-        df: DataFrame with OHLCV data
-        window: RSI calculation window
-        
-    Returns:
-        DataFrame with RSI indicator added
-    """
-    df = df.copy()
-    delta = df['close'].diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
-    rs = gain / loss
-    df['rsi'] = 100 - (100 / (1 + rs))
-    return df
-
-def calculate_obv(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Calculate On-Balance Volume (OBV) indicator.
+    # Convert to numpy arrays for TA-Lib
+    close = df['close'].values
+    volume = df['volume'].values
     
-    Args:
-        df: DataFrame with OHLCV data
-        
-    Returns:
-        DataFrame with OBV indicator added
-    """
-    df = df.copy()
-    df['obv'] = 0.0
-    df['obv_sma'] = 0.0
+    # Bollinger Bands using TA-Lib
+    bb_upper, bb_middle, bb_lower = talib.BBANDS(
+        close, 
+        timeperiod=20, 
+        nbdevup=2, 
+        nbdevdn=2, 
+        matype=0
+    )
     
-    # Calculate OBV
-    for i in range(1, len(df)):
-        if df['close'].iloc[i] > df['close'].iloc[i-1]:
-            df['obv'].iloc[i] = df['obv'].iloc[i-1] + df['volume'].iloc[i]
-        elif df['close'].iloc[i] < df['close'].iloc[i-1]:
-            df['obv'].iloc[i] = df['obv'].iloc[i-1] - df['volume'].iloc[i]
-        else:
-            df['obv'].iloc[i] = df['obv'].iloc[i-1]
+    df['bb_upper'] = bb_upper
+    df['bb_middle'] = bb_middle  # This is the moving average
+    df['bb_lower'] = bb_lower
+    df['bb_width'] = (bb_upper - bb_lower) / bb_middle
     
-    # Calculate OBV moving average
-    df['obv_sma'] = df['obv'].rolling(window=20).mean()
-    df['obv_ratio'] = df['obv'] / df['obv_sma']
+    # RSI using TA-Lib
+    df['rsi'] = talib.RSI(close, timeperiod=14)
+    
+    # OBV using TA-Lib
+    df['obv'] = talib.OBV(close, volume)
+    df['obv_ratio'] = df['obv'] / df['obv'].rolling(window=20).mean()
     
     return df
 
-def generate_signals(df: pd.DataFrame, params: Dict) -> pd.DataFrame:
-    """
-    Generate trading signals based on BB + RSI + OBV strategy, with stop loss, take profit, and position management.
-    
-    Args:
-        df: DataFrame with technical indicators
-        params: Strategy parameters (including stop_loss_pct, take_profit_pct, max_position)
-        
-    Returns:
-        DataFrame with signals and positions added
-    """
+def generate_signals_enhanced(df, params):
+    """Generate enhanced trading signals using multiple TA-Lib indicators"""
     df = df.copy()
+    
+    # Initialize signal column
     df['signal'] = 0
-    df['position'] = 0
-    df['entry_price'] = np.nan
     
-    stop_loss_pct = params.get('stop_loss_pct', 0.02)  # 2% default
-    take_profit_pct = params.get('take_profit_pct', 0.01)  # 1% default
-    max_position = params.get('max_position', 1)
+    # Buy signals - Enhanced conditions
+    buy_conditions = (
+        (df['close'] <= df['bb_lower']) &  # Price at or below lower Bollinger Band
+        (df['rsi'] <= params['rsi_oversold']) &  # RSI oversold
+        (df['obv_ratio'] >= params['obv_threshold']) &  # Strong volume
+        (df['macd'] > df['macd_signal']) &  # MACD bullish crossover
+        (df['stoch_k'] <= 20) &  # Stochastic oversold
+        (df['williams_r'] <= -80) &  # Williams %R oversold
+        (df['adx'] >= params['adx_threshold'])  # Strong trend
+    )
+    
+    # Sell signals - Enhanced conditions
+    sell_conditions = (
+        (df['close'] >= df['bb_upper']) &  # Price at or above upper Bollinger Band
+        (df['rsi'] >= params['rsi_overbought']) &  # RSI overbought
+        (df['obv_ratio'] <= 1/params['obv_threshold']) &  # Weak volume
+        (df['macd'] < df['macd_signal']) &  # MACD bearish crossover
+        (df['stoch_k'] >= 80) &  # Stochastic overbought
+        (df['williams_r'] >= -20) &  # Williams %R overbought
+        (df['adx'] >= params['adx_threshold'])  # Strong trend
+    )
+    
+    # Set signals
+    df.loc[buy_conditions, 'signal'] = 1  # Buy signal
+    df.loc[sell_conditions, 'signal'] = -1  # Sell signal
+    
+    return df
+
+def calculate_returns(df, params):
+    """Calculate trading returns and performance metrics"""
+    df = df.copy()
+    
+    # Initialize position and returns columns
+    df['position'] = 0
+    df['returns'] = 0.0
+    df['cumulative_returns'] = 0.0
     
     position = 0
-    entry_price = np.nan
-    for i in range(len(df)):
-        # 進場條件
-        if position == 0:
-            buy_condition = (
-                (df['close'].iloc[i] <= df['bb_lower'].iloc[i]) &
-                (df['rsi'].iloc[i] < params['rsi_oversold']) &
-                (df['obv_ratio'].iloc[i] > params['obv_threshold'])
-            )
-            sell_condition = (
-                (df['close'].iloc[i] >= df['bb_upper'].iloc[i]) &
-                (df['rsi'].iloc[i] > params['rsi_overbought']) &
-                (df['obv_ratio'].iloc[i] < 1/params['obv_threshold'])
-            )
-            if buy_condition and position < max_position:
-                df['signal'].iloc[i] = 1
-                position = 1
-                entry_price = df['close'].iloc[i]
-            elif sell_condition and position > -max_position:
-                df['signal'].iloc[i] = -1
-                position = -1
-                entry_price = df['close'].iloc[i]
-        else:
-            # 持倉中，檢查停損/停利
-            if position == 1:
-                # 多單停損/停利
-                if (df['close'].iloc[i] <= entry_price * (1 - stop_loss_pct)) or (df['close'].iloc[i] >= entry_price * (1 + take_profit_pct)):
-                    df['signal'].iloc[i] = -1  # 平多
-                    position = 0
-                    entry_price = np.nan
-            elif position == -1:
-                # 空單停損/停利
-                if (df['close'].iloc[i] >= entry_price * (1 + stop_loss_pct)) or (df['close'].iloc[i] <= entry_price * (1 - take_profit_pct)):
-                    df['signal'].iloc[i] = 1  # 平空
-                    position = 0
-                    entry_price = np.nan
-        df['position'].iloc[i] = position
-        df['entry_price'].iloc[i] = entry_price
-    return df
-
-def calculate_returns(df: pd.DataFrame, params: Dict) -> Dict:
-    """
-    Calculate strategy returns and performance metrics.
+    entry_price = 0
+    entry_time = None
     
-    Args:
-        df: DataFrame with signals and positions
-        params: Strategy parameters
+    for i in range(1, len(df)):
+        current_price = df.iloc[i]['close']
+        current_signal = df.iloc[i]['signal']
         
-    Returns:
-        Dictionary with performance metrics
-    """
-    df = df.copy()
-    
-    # Calculate strategy returns
-    df['price_change'] = df['close'].pct_change()
-    df['strategy_return'] = df['position'].shift(1) * df['price_change']
-    
-    # Apply transaction costs
-    transaction_cost = params.get('transaction_cost', 0.0001)  # 0.01% per trade
-    position_changes = df['position'].diff().abs()
-    df['transaction_costs'] = position_changes * transaction_cost
-    df['net_return'] = df['strategy_return'] - df['transaction_costs']
+        # If we have a position, check for exit conditions
+        if position != 0:
+            # Calculate current return
+            if position == 1:  # Long position
+                current_return = (current_price - entry_price) / entry_price
+            else:  # Short position
+                current_return = (entry_price - current_price) / entry_price
+            
+            # Check stop loss
+            if current_return <= -params['stop_loss_pct']:
+                # Stop loss hit
+                df.iloc[i, df.columns.get_loc('position')] = 0
+                df.iloc[i, df.columns.get_loc('returns')] = -params['stop_loss_pct']
+                position = 0
+                entry_price = 0
+                entry_time = None
+                continue
+            
+            # Check take profit
+            if current_return >= params['take_profit_pct']:
+                # Take profit hit
+                df.iloc[i, df.columns.get_loc('position')] = 0
+                df.iloc[i, df.columns.get_loc('returns')] = params['take_profit_pct']
+                position = 0
+                entry_price = 0
+                entry_time = None
+                continue
+        
+        # Check for new signals
+        if current_signal == 1 and position == 0:  # Buy signal
+            position = 1
+            entry_price = current_price
+            entry_time = df.index[i]
+            df.iloc[i, df.columns.get_loc('position')] = 1
+        elif current_signal == -1 and position == 0:  # Sell signal
+            position = -1
+            entry_price = current_price
+            entry_time = df.index[i]
+            df.iloc[i, df.columns.get_loc('position')] = -1
+        elif current_signal != 0 and position != 0:  # Exit signal
+            # Close position
+            if position == 1:  # Long position
+                current_return = (current_price - entry_price) / entry_price
+            else:  # Short position
+                current_return = (entry_price - current_price) / entry_price
+            
+            df.iloc[i, df.columns.get_loc('position')] = 0
+            df.iloc[i, df.columns.get_loc('returns')] = current_return
+            position = 0
+            entry_price = 0
+            entry_time = None
     
     # Calculate cumulative returns
-    df['cumulative_return'] = (1 + df['net_return']).cumprod()
+    df['cumulative_returns'] = df['returns'].cumsum()
     
     # Calculate performance metrics
-    total_return = df['cumulative_return'].iloc[-1] - 1
-    annual_return = (1 + total_return) ** (252 / len(df)) - 1
+    total_return = df['cumulative_returns'].iloc[-1]
+    num_trades = len(df[df['returns'] != 0])
+    winning_trades = len(df[df['returns'] > 0])
+    losing_trades = len(df[df['returns'] < 0])
     
-    # Calculate volatility
-    daily_returns = df['net_return'].resample('D').sum()
-    volatility = daily_returns.std() * np.sqrt(252)
-    
-    # Calculate Sharpe ratio
-    risk_free_rate = 0.02  # 2% annual risk-free rate
-    sharpe_ratio = (annual_return - risk_free_rate) / volatility if volatility > 0 else 0
-    
-    # Calculate maximum drawdown
-    cumulative = df['cumulative_return']
-    running_max = cumulative.expanding().max()
-    drawdown = (cumulative - running_max) / running_max
-    max_drawdown = drawdown.min()
-    
-    # Calculate win rate
-    trades = df[df['signal'] != 0]
-    if len(trades) > 0:
-        winning_trades = trades[trades['strategy_return'] > 0]
-        win_rate = len(winning_trades) / len(trades)
+    if num_trades > 0:
+        win_rate = winning_trades / num_trades
+        avg_win = df[df['returns'] > 0]['returns'].mean() if winning_trades > 0 else 0
+        avg_loss = df[df['returns'] < 0]['returns'].mean() if losing_trades > 0 else 0
+        profit_factor = abs(avg_win * winning_trades / (avg_loss * losing_trades)) if losing_trades > 0 else float('inf')
     else:
         win_rate = 0
+        avg_win = 0
+        avg_loss = 0
+        profit_factor = 0
     
-    return {
+    # Calculate maximum drawdown
+    cumulative_returns = df['cumulative_returns']
+    running_max = cumulative_returns.expanding().max()
+    drawdown = (cumulative_returns - running_max) / running_max
+    max_drawdown = drawdown.min()
+    
+    metrics = {
         'total_return': total_return,
-        'annual_return': annual_return,
-        'volatility': volatility,
-        'sharpe_ratio': sharpe_ratio,
-        'max_drawdown': max_drawdown,
+        'num_trades': num_trades,
+        'winning_trades': winning_trades,
+        'losing_trades': losing_trades,
         'win_rate': win_rate,
-        'num_trades': len(trades),
-        'final_cumulative_return': df['cumulative_return'].iloc[-1]
+        'avg_win': avg_win,
+        'avg_loss': avg_loss,
+        'profit_factor': profit_factor,
+        'max_drawdown': max_drawdown
     }
+    
+    return df, metrics
 
-def optimize_parameters(df: pd.DataFrame, param_ranges: Dict) -> Tuple[Dict, Dict]:
-    """
-    Optimize strategy parameters using grid search.
+def plot_enhanced_indicators(df_results):
+    """Plot enhanced technical indicators"""
+    plt.figure(figsize=(20, 15))
     
-    Args:
-        df: DataFrame with OHLCV data
-        param_ranges: Dictionary with parameter ranges to test
-        
-    Returns:
-        Tuple of (best_params, best_metrics)
-    """
-    print("Starting parameter optimization...")
+    # Price and Bollinger Bands
+    plt.subplot(4, 2, 1)
+    plt.plot(df_results.index, df_results['close'], label='Close Price', alpha=0.7)
+    plt.plot(df_results.index, df_results['bb_upper'], label='BB Upper', alpha=0.5)
+    plt.plot(df_results.index, df_results['bb_lower'], label='BB Lower', alpha=0.5)
+    plt.plot(df_results.index, df_results['bb_middle'], label='BB Middle', alpha=0.5)
     
-    # Generate all parameter combinations
-    param_names = list(param_ranges.keys())
-    param_values = list(param_ranges.values())
-    param_combinations = list(itertools.product(*param_values))
+    # Mark buy/sell signals
+    buy_signals = df_results[df_results['signal'] == 1]
+    sell_signals = df_results[df_results['signal'] == -1]
     
-    best_sharpe = -np.inf
-    best_params = None
-    best_metrics = None
-    results = []
+    plt.scatter(buy_signals.index, buy_signals['close'], 
+               color='green', marker='^', s=100, label='Buy Signal', alpha=0.7)
+    plt.scatter(sell_signals.index, sell_signals['close'], 
+               color='red', marker='v', s=100, label='Sell Signal', alpha=0.7)
     
-    total_combinations = len(param_combinations)
-    print(f"Testing {total_combinations} parameter combinations...")
+    plt.title('Price Chart with Bollinger Bands and Signals')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
     
-    # 新增停損/停利參數範圍（如未指定則預設）
-    if 'stop_loss_pct' not in param_ranges:
-        param_ranges['stop_loss_pct'] = [0.02]
-    if 'take_profit_pct' not in param_ranges:
-        param_ranges['take_profit_pct'] = [0.01]  # 1% take profit
-    if 'max_position' not in param_ranges:
-        param_ranges['max_position'] = [1]
+    # RSI
+    plt.subplot(4, 2, 2)
+    plt.plot(df_results.index, df_results['rsi'], label='RSI', color='purple')
+    plt.axhline(y=70, color='r', linestyle='--', alpha=0.5, label='Overbought')
+    plt.axhline(y=30, color='g', linestyle='--', alpha=0.5, label='Oversold')
+    plt.title('RSI Indicator')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
     
-    for i, combination in enumerate(param_combinations):
-        if i % 100 == 0:
-            print(f"Progress: {i}/{total_combinations} ({i/total_combinations*100:.1f}%)")
-        
-        # Create parameter dictionary
-        params = dict(zip(param_names, combination))
-        
-        # Add default parameters
-        default_params = {
-            'bb_window': 20,
-            'bb_std': 2.0,
-            'rsi_window': 14,
-            'transaction_cost': 0.0001
-        }
-        params.update(default_params)
-        
-        try:
-            # Calculate indicators
-            df_with_indicators = calculate_bollinger_bands(df, params['bb_window'], params['bb_std'])
-            df_with_indicators = calculate_rsi(df_with_indicators, params['rsi_window'])
-            df_with_indicators = calculate_obv(df_with_indicators)
-            
-            # Generate signals
-            df_with_signals = generate_signals(df_with_indicators, params)
-            
-            # Calculate performance
-            metrics = calculate_returns(df_with_signals, params)
-            
-            results.append({
-                'params': params.copy(),
-                'metrics': metrics
-            })
-            
-            # Update best parameters if Sharpe ratio is better
-            if metrics['sharpe_ratio'] > best_sharpe:
-                best_sharpe = metrics['sharpe_ratio']
-                best_params = params.copy()
-                best_metrics = metrics.copy()
-                
-        except Exception as e:
-            print(f"Error with parameters {params}: {e}")
-            continue
+    # MACD
+    plt.subplot(4, 2, 3)
+    plt.plot(df_results.index, df_results['macd'], label='MACD', color='blue')
+    plt.plot(df_results.index, df_results['macd_signal'], label='MACD Signal', color='red')
+    plt.bar(df_results.index, df_results['macd_hist'], label='MACD Histogram', alpha=0.3)
+    plt.title('MACD Indicator')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
     
-    print(f"Optimization completed. Best Sharpe ratio: {best_sharpe:.4f}")
-    return best_params, best_metrics
+    # Stochastic
+    plt.subplot(4, 2, 4)
+    plt.plot(df_results.index, df_results['stoch_k'], label='%K', color='blue')
+    plt.plot(df_results.index, df_results['stoch_d'], label='%D', color='red')
+    plt.axhline(y=80, color='r', linestyle='--', alpha=0.5, label='Overbought')
+    plt.axhline(y=20, color='g', linestyle='--', alpha=0.5, label='Oversold')
+    plt.title('Stochastic Oscillator')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    
+    # Williams %R
+    plt.subplot(4, 2, 5)
+    plt.plot(df_results.index, df_results['williams_r'], label='Williams %R', color='orange')
+    plt.axhline(y=-20, color='r', linestyle='--', alpha=0.5, label='Overbought')
+    plt.axhline(y=-80, color='g', linestyle='--', alpha=0.5, label='Oversold')
+    plt.title('Williams %R')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    
+    # ADX
+    plt.subplot(4, 2, 6)
+    plt.plot(df_results.index, df_results['adx'], label='ADX', color='brown')
+    plt.axhline(y=25, color='r', linestyle='--', alpha=0.5, label='Strong Trend')
+    plt.title('Average Directional Index (ADX)')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    
+    # ATR
+    plt.subplot(4, 2, 7)
+    plt.plot(df_results.index, df_results['atr'], label='ATR', color='gray')
+    plt.title('Average True Range (ATR)')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    
+    # Cumulative Returns
+    plt.subplot(4, 2, 8)
+    plt.plot(df_results.index, df_results['cumulative_returns'], 
+             label='Cumulative Returns', color='blue')
+    plt.title('Cumulative Returns')
+    plt.legend()
+    plt.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    plt.savefig('RUN/1/system1_talib_performance.png', dpi=300, bbox_inches='tight')
+    plt.show()
 
 def main():
-    """
-    Main function to run the parameter optimization.
-    """
-    # Load data
-    print("Loading TXF 1-minute data...")
-    file_path = "TXF1_Minute_2020-01-01_2025-06-16.txt"
-    df_1min = load_txf_data(file_path)
-    print(f"1-minute data loaded: {len(df_1min)} records from {df_1min.index[0]} to {df_1min.index[-1]}")
+    """Main function to run the enhanced strategy using TA-Lib"""
+    print("="*60)
+    print("SYSTEM 1: Enhanced Strategy with TA-Lib")
+    print("="*60)
     
-    # Convert to 4-hour data
-    print("Converting to 4-hour data...")
-    df = convert_to_4h_data(df_1min)
-    print(type(df))  # 印出 df 的型態
-    print(f"4-hour data ready: {len(df)} records from {df.index[0]} to {df.index[-1]}")
+    # Load and process data
+    df_1min = load_txf_data("TXF1_Minute_2020-01-01_2025-06-16.txt")
+    df_4h = convert_to_4h_data(df_1min)
     
-    # Define parameter ranges for optimization (auto set, wider range)
-    param_ranges = {
-        'bb_window': [10, 15, 20, 25, 30],
-        'bb_std': [1.5, 2.0, 2.5, 3.0],
-        'rsi_window': [10, 14, 20],
-        'rsi_oversold': [20, 25, 30],
-        'rsi_overbought': [70, 75, 80],
-        'obv_threshold': [1.1, 1.2, 1.3, 1.5]
+    # Calculate technical indicators using TA-Lib
+    print("Calculating technical indicators using TA-Lib...")
+    df_indicators = calculate_technical_indicators_talib(df_4h)
+    
+    # Enhanced strategy parameters
+    params = {
+        'rsi_oversold': 30,
+        'rsi_overbought': 70,
+        'obv_threshold': 1.2,
+        'adx_threshold': 25,  # Minimum ADX for trend strength
+        'stop_loss_pct': 0.02,  # 2% stop loss
+        'take_profit_pct': 0.01  # 1% take profit
     }
     
-    # Run optimization
-    best_params, best_metrics = optimize_parameters(df, param_ranges)
+    print(f"Enhanced strategy parameters: {params}")
     
-    # Print results
-    print("\n" + "="*50)
-    print("OPTIMIZATION RESULTS (4-HOUR DATA)")
-    print("="*50)
-    print("Best Parameters:")
-    for key, value in best_params.items():
-        print(f"  {key}: {value}")
+    # Generate enhanced signals
+    print("Generating enhanced trading signals...")
+    df_signals = generate_signals_enhanced(df_indicators, params)
     
-    print("\nBest Performance Metrics:")
-    for key, value in best_metrics.items():
-        if isinstance(value, float):
-            print(f"  {key}: {value:.4f}")
-        else:
-            print(f"  {key}: {value}")
+    # Count signals
+    signal_counts = df_signals['signal'].value_counts()
+    print(f"Signal distribution: {signal_counts.to_dict()}")
     
-    return best_params, best_metrics
+    # Calculate performance
+    print("Calculating performance metrics...")
+    df_results, metrics = calculate_returns(df_signals, params)
+    
+    # Display results
+    print("\n" + "="*60)
+    print("ENHANCED PERFORMANCE RESULTS")
+    print("="*60)
+    print(f"Total Return: {metrics['total_return']:.4f} ({metrics['total_return']*100:.2f}%)")
+    print(f"Number of Trades: {metrics['num_trades']}")
+    print(f"Winning Trades: {metrics['winning_trades']}")
+    print(f"Losing Trades: {metrics['losing_trades']}")
+    print(f"Win Rate: {metrics['win_rate']:.4f} ({metrics['win_rate']*100:.2f}%)")
+    print(f"Average Win: {metrics['avg_win']:.4f} ({metrics['avg_win']*100:.2f}%)")
+    print(f"Average Loss: {metrics['avg_loss']:.4f} ({metrics['avg_loss']*100:.2f}%)")
+    print(f"Profit Factor: {metrics['profit_factor']:.4f}")
+    print(f"Maximum Drawdown: {metrics['max_drawdown']:.4f} ({metrics['max_drawdown']*100:.2f}%)")
+    
+    # Plot enhanced results
+    print("\nGenerating enhanced performance chart...")
+    plot_enhanced_indicators(df_results)
+    
+    print(f"\nChart saved as: RUN/1/system1_talib_performance.png")
+    print("Enhanced System 1 with TA-Lib execution completed successfully!")
 
 if __name__ == "__main__":
-    best_params, best_metrics = main()
+    main()
