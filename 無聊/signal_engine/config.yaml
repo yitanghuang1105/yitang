@@ -1,0 +1,33 @@
+# 台指期 Discord 機器人即時預警系統 - 訊號設定檔
+
+# 價格變化設定
+price_change:
+  # 大漲大跌閾值（點）
+  large_move_threshold: 100
+  # 大漲大跌百分比閾值
+  large_move_pct_threshold: 1.5
+  # 急漲急跌閾值（3分鐘內）
+  rapid_move_threshold: 100
+
+# 技術指標設定
+technical_indicators:
+  # RSI 超買閾值
+  rsi_overbought: 80
+  # RSI 超賣閾值
+  rsi_oversold: 20
+  # MACD 閾值
+  macd_threshold: 0.5
+
+# 成交量設定
+volume:
+  # 成交量放大倍數閾值
+  volume_surge_threshold: 2.0
+
+# 通知設定
+notification:
+  # 是否啟用 @用戶 功能
+  enable_mentions: true
+  # 要 @ 的用戶或群組
+  mention_targets: ["@TraderTeam"]
+  # 訊息冷卻時間（秒）
+  cooldown_seconds: 300 
