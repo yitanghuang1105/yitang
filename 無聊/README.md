@@ -20,7 +20,7 @@
 │   ├── mc_file_reader.py    # MultiCharts 匯出資料監控
 │   └── ib_api_reader.py     # IB 接口擷取行情（備用）
 ├── signal_engine/
-│   ├── __init__.py
+│   ├── __init__.py`
 │   ├── rules.py             # 訊號判斷邏輯
 │   └── config.yaml          # 條件參數設定
 ├── notifier/

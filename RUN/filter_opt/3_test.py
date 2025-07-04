@@ -466,12 +466,34 @@ def main():
     print("="*60)
     
     # Load and process data
-    df_1min = load_txf_data("TXF1_Minute_2020-01-01_2025-06-16.txt")
-    df_4h = convert_to_4h_data(df_1min)
+    df = pd.read_csv('TXF1_Minute_2020-01-01_2025-06-16.txt')
+    
+    # Convert Date and Time to datetime
+    df['timestamp'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
+    
+    # Set timestamp as index
+    df.set_index('timestamp', inplace=True)
+    
+    # Rename columns to lowercase
+    df = df.rename(columns={
+        'Open': 'open',
+        'High': 'high', 
+        'Low': 'low',
+        'Close': 'close',
+        'TotalVolume': 'volume'
+    })
+    
+    # Sort by timestamp
+    df.sort_index(inplace=True)
+    
+    # Use only first 1000 records for testing
+    df = df.head(1000)
+    
+    print(f"Data loaded: {len(df)} records from {df.index.min()} to {df.index.max()}")
     
     # Calculate technical indicators
     print("Calculating technical indicators...")
-    df_bb = calculate_bollinger_bands(df_4h, window=20, num_std=2.0)
+    df_bb = calculate_bollinger_bands(df, window=20, num_std=2.0)
     df_rsi = calculate_rsi(df_bb, window=14)
     df_obv = calculate_obv(df_rsi)
     
