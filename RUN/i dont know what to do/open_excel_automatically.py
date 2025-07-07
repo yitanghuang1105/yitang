@@ -9,33 +9,21 @@ import time
 from datetime import datetime
 
 def find_latest_excel_file():
-    """Find the most recent Excel file in the current directory"""
-    excel_files = glob.glob("complete_trading_results_with_charts_*.xlsx")
-    
+    """Find the most recent Excel file in the current directory (strategy_test_results_*.xlsx)"""
+    excel_files = glob.glob("strategy_test_results_*.xlsx")
     if not excel_files:
         print("No Excel files found!")
         return None
-    
-    # Sort by modification time (newest first)
     latest_file = max(excel_files, key=os.path.getmtime)
     return latest_file
 
 def open_excel_file(file_path):
     """Open Excel file using default application"""
     try:
-        # Get absolute path
         abs_path = os.path.abspath(file_path)
-        print(f"Opening Excel file: {abs_path}")
-        
-        # Open with default application
-        if os.name == 'nt':  # Windows
-            os.startfile(abs_path)
-        else:  # macOS/Linux
-            subprocess.run(['open', abs_path])
-        
-        print("✅ Excel file opened successfully!")
+        os.startfile(abs_path)
+        print(f"✅ Excel file opened successfully: {abs_path}")
         return True
-        
     except Exception as e:
         print(f"❌ Error opening Excel file: {e}")
         return False
@@ -65,14 +53,9 @@ def main():
             print(f"1. Navigate to: {os.getcwd()}")
             print(f"2. Double-click: {excel_file}")
         else:
-            print("\n❌ Failed to open Excel file automatically")
-            print("Please open it manually:")
-            print(f"File location: {os.getcwd()}")
-            print(f"File name: {excel_file}")
+            print("\n⚠️ Failed to open Excel file.")
     else:
-        print("No Excel files found in current directory")
-        print("Please run the Excel export script first:")
-        print("python complete_excel_export.py")
+        print("No Excel file to open.")
 
 if __name__ == "__main__":
     main() 

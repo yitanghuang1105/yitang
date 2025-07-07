@@ -16,47 +16,37 @@ import warnings
 warnings.filterwarnings('ignore')
 
 def run_strategy_file(file_path):
-    """Run a single strategy file and return the result"""
+    """Run a single strategy file and return the result, 並嘗試取得 cumulative_return 欄位的 DataFrame"""
     try:
         print(f"Starting {file_path}...")
         start_time = time.time()
-        
-        # Change to the directory containing the strategy file
         strategy_dir = os.path.dirname(file_path)
         original_cwd = os.getcwd()
         os.chdir(strategy_dir)
-        
-        # Run the Python file
         result = subprocess.run([sys.executable, os.path.basename(file_path)], 
                               capture_output=True, 
                               text=True, 
                               cwd=os.getcwd())
-        
-        # Change back to original directory
         os.chdir(original_cwd)
-        
         end_time = time.time()
         execution_time = end_time - start_time
-        
-        if result.returncode == 0:
-            print(f"✅ {file_path} completed successfully in {execution_time:.2f} seconds")
-            return {
-                'file': file_path,
-                'status': 'success',
-                'execution_time': execution_time,
-                'output': result.stdout,
-                'error': result.stderr
-            }
-        else:
-            print(f"❌ {file_path} failed with return code {result.returncode}")
-            return {
-                'file': file_path,
-                'status': 'failed',
-                'execution_time': execution_time,
-                'output': result.stdout,
-                'error': result.stderr
-            }
-            
+        res = {
+            'file': file_path,
+            'status': 'success' if result.returncode == 0 else 'failed',
+            'execution_time': execution_time,
+            'output': result.stdout,
+            'error': result.stderr
+        }
+        # 嘗試自動讀取策略產生的 cumulative_return DataFrame
+        # 這裡以 takeprofit_opt/2.py 為例，假設它會輸出一個 csv 檔案
+        csv_path = os.path.join(strategy_dir, 'cumulative_return.csv')
+        if os.path.exists(csv_path):
+            try:
+                df = pd.read_csv(csv_path, index_col=0, parse_dates=True)
+                res['cumulative_return'] = df
+            except Exception as e:
+                print(f"讀取 cumulative_return.csv 失敗: {e}")
+        return res
     except Exception as e:
         print(f"❌ {file_path} encountered an error: {str(e)}")
         return {
@@ -213,24 +203,18 @@ def create_strategy_comparison(performance_df):
 def export_to_excel(results, output_file):
     """Export all results to Excel with multiple sheets"""
     print(f"\nExporting results to {output_file}...")
-    
-    # Create Excel writer
     with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
-        
         # Sheet 1: Execution Summary
         execution_df = create_execution_summary(results)
         execution_df.to_excel(writer, sheet_name='Execution Summary', index=False)
-        
         # Sheet 2: Performance Summary
         performance_df = create_performance_summary(results)
         if not performance_df.empty:
             performance_df.to_excel(writer, sheet_name='Performance Summary', index=False)
-            
             # Sheet 3: Strategy Comparison
             comparison_df = create_strategy_comparison(performance_df)
             if not comparison_df.empty:
                 comparison_df.to_excel(writer, sheet_name='Strategy Comparison', index=False)
-        
         # Sheet 4: Raw Output
         raw_data = []
         for result in results:
@@ -242,7 +226,6 @@ def export_to_excel(results, output_file):
             })
         raw_df = pd.DataFrame(raw_data)
         raw_df.to_excel(writer, sheet_name='Raw Output', index=False)
-        
         # Sheet 5: Test Configuration
         config_data = {
             'Test Date': [datetime.now().strftime('%Y-%m-%d %H:%M:%S')],
@@ -254,8 +237,31 @@ def export_to_excel(results, output_file):
         }
         config_df = pd.DataFrame(config_data)
         config_df.to_excel(writer, sheet_name='Test Configuration', index=False)
-    
+        # 新增：權益曲線 sheet
+        export_equity_curve_to_excel(results, writer, initial_capital=100000)
     print(f"✅ Excel file exported successfully: {output_file}")
+    # 自動開啟 Excel 檔案（僅限 Windows）
+    try:
+        abs_path = os.path.abspath(output_file)
+        os.startfile(abs_path)
+        print("✅ Excel file opened automatically!")
+    except Exception as e:
+        print(f"⚠️ Could not auto-open Excel file: {e}")
+
+def export_equity_curve_to_excel(results, writer, initial_capital=100000):
+    """將每個策略的權益曲線匯出到 Excel（每個策略一個 sheet）"""
+    for result in results:
+        # 檢查是否有 cumulative_return DataFrame
+        if result.get('status') == 'success' and isinstance(result.get('cumulative_return'), pd.DataFrame):
+            df = result['cumulative_return']
+            if 'cumulative_return' in df.columns:
+                equity_curve = df['cumulative_return'] * initial_capital
+                out_df = pd.DataFrame({
+                    'Datetime': df.index,
+                    'Equity': equity_curve
+                })
+                sheet_name = f"Equity_{Path(result['file']).stem}"
+                out_df.to_excel(writer, sheet_name=sheet_name[:31], index=False)
 
 def main():
     """Main function to run all strategies and export to Excel"""
@@ -267,12 +273,12 @@ def main():
     
     # Define the strategy files to run
     strategy_files = [
-        "basic_opt/1.py",
-        "takeprofit_opt/2.py", 
-        "filter_opt/3.py",
-        "strategy_demo/4.py",
-        "cost_calc/5.py",
-        "param_test/6.py"
+        "RUN/basic_opt/1.py",
+        "RUN/takeprofit_opt/2.py",
+        "RUN/filter_opt/3.py",
+        "RUN/strategy_demo/4.py",
+        "RUN/cost_calc/5.py",
+        "RUN/param_test/6.py"
     ]
     
     # Check which files exist

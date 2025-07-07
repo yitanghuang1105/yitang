@@ -54,7 +54,10 @@ def generate_trades_from_signals(df):
 
 if __name__ == '__main__':
     # 讀取台指期資料
-    df = pd.read_csv('TXF1_Minute_2020-01-01_2025-06-16.txt')
+    file_path = 'TXF1_Minute_2020-01-01_2025-06-16.txt'
+    df = pd.read_csv(file_path, encoding='utf-8')
+    if 'timestamp' not in df.columns and 'Date' in df.columns and 'Time' in df.columns:
+        df['timestamp'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
     # 這裡省略指標與訊號計算，假設df已包含EntrySignal/ExitSignal
     # 若需完整流程，請將1.py的指標與訊號計算複製過來
     # 產生交易紀錄

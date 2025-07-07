@@ -374,7 +374,9 @@ def year_interval_test(df, params, year_ranges=None):
 
 def load_txf_data(file_path):
     """載入TXF資料"""
-    df = pd.read_csv(file_path)
+    df = pd.read_csv(file_path, encoding='utf-8')
+    if 'timestamp' not in df.columns and 'Date' in df.columns and 'Time' in df.columns:
+        df['timestamp'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
     return df
 
 def main():

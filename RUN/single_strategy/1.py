@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 from datetime import datetime, timedelta
 import warnings
 import talib
+import glob
+import json
 warnings.filterwarnings('ignore')
 
 def load_txf_data(file_path):
@@ -11,10 +13,10 @@ def load_txf_data(file_path):
     print(f"Loading data from {file_path}...")
     
     # Read the data file
-    df = pd.read_csv(file_path, sep='\t')
+    df = pd.read_csv(file_path, encoding='utf-8')
     
-    # Convert timestamp to datetime
-    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    if 'timestamp' not in df.columns and 'Date' in df.columns and 'Time' in df.columns:
+        df['timestamp'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
     
     # Set timestamp as index
     df.set_index('timestamp', inplace=True)
@@ -304,6 +306,22 @@ def plot_enhanced_indicators(df_results):
     plt.savefig('RUN/1/system1_talib_performance.png', dpi=300, bbox_inches='tight')
     plt.show()
 
+def load_latest_params():
+    param_files = sorted(glob.glob("strategy_params_basic_optimization_*.json"), reverse=True)
+    if not param_files:
+        print("No parameter file found! Using default parameters.")
+        return {
+            'rsi_oversold': 30,
+            'rsi_overbought': 70,
+            'obv_threshold': 1.2,
+            'adx_threshold': 25,
+            'stop_loss_pct': 0.02,
+            'take_profit_pct': 0.01
+        }
+    with open(param_files[0], "r") as f:
+        data = json.load(f)
+        return data.get("basic_optimization", data)
+
 def main():
     """Main function to run the enhanced strategy using TA-Lib"""
     print("="*60)
@@ -319,15 +337,7 @@ def main():
     df_indicators = calculate_technical_indicators_talib(df_4h)
     
     # Enhanced strategy parameters
-    params = {
-        'rsi_oversold': 30,
-        'rsi_overbought': 70,
-        'obv_threshold': 1.2,
-        'adx_threshold': 25,  # Minimum ADX for trend strength
-        'stop_loss_pct': 0.02,  # 2% stop loss
-        'take_profit_pct': 0.01  # 1% take profit
-    }
-    
+    params = load_latest_params()
     print(f"Enhanced strategy parameters: {params}")
     
     # Generate enhanced signals
@@ -364,4 +374,3 @@ def main():
     print("Enhanced System 1 with TA-Lib execution completed successfully!")
 
 if __name__ == "__main__":
-    main()

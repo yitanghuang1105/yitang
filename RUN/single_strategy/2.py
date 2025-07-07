@@ -4,6 +4,8 @@ from typing import Dict, Tuple, List
 import itertools
 from datetime import datetime, timedelta
 import warnings
+import glob
+import json
 warnings.filterwarnings('ignore')
 
 def load_txf_data(file_path: str) -> pd.DataFrame:
@@ -16,9 +18,10 @@ def load_txf_data(file_path: str) -> pd.DataFrame:
     Returns:
         DataFrame with datetime index and OHLCV data
     """
-    df = pd.read_csv(file_path)
-    df['Datetime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
-    df.set_index('Datetime', inplace=True)
+    df = pd.read_csv(file_path, encoding='utf-8')
+    if 'timestamp' not in df.columns and 'Date' in df.columns and 'Time' in df.columns:
+        df['timestamp'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
+    df.set_index('timestamp', inplace=True)
     df = df[['Open', 'High', 'Low', 'Close', 'TotalVolume']]
     df.columns = ['open', 'high', 'low', 'close', 'volume']  # Standardize column names for technical indicators
     return df
@@ -40,13 +43,13 @@ def convert_to_4h_data(df: pd.DataFrame) -> pd.DataFrame:
     
     # Create 4-hour periods
     # Group by date and 4-hour blocks (240 minutes)
-    df['date'] = df['Datetime'].dt.date
-    df['hour_block'] = df['Datetime'].dt.hour // 4  # 0-5 for 4-hour blocks
+    df['date'] = df['timestamp'].dt.date
+    df['hour_block'] = df['timestamp'].dt.hour // 4  # 0-5 for 4-hour blocks
     df['period'] = df['date'].astype(str) + '_' + df['hour_block'].astype(str)
     
     # Group by period and aggregate
     grouped = df.groupby('period').agg({
-        'Datetime': 'first',  # First datetime of the period
+        'timestamp': 'first',  # First datetime of the period
         'open': 'first',      # First open price
         'high': 'max',        # Maximum high price
         'low': 'min',         # Minimum low price
@@ -55,7 +58,7 @@ def convert_to_4h_data(df: pd.DataFrame) -> pd.DataFrame:
     })
     
     # Set datetime as index
-    grouped = grouped.set_index('Datetime')
+    grouped = grouped.set_index('timestamp')
     
     # Sort by datetime
     grouped = grouped.sort_index()
@@ -338,6 +341,25 @@ def optimize_parameters(df: pd.DataFrame, param_ranges: Dict) -> Tuple[Dict, Dic
     print(f"Optimization completed. Best Sharpe ratio: {best_sharpe:.4f}")
     return best_params, best_metrics
 
+def load_latest_params():
+    param_files = sorted(glob.glob("strategy_params_take_profit_optimization_*.json"), reverse=True)
+    if not param_files:
+        print("No parameter file found! Using default parameters.")
+        return {
+            'bb_window': 20,
+            'bb_std': 2.0,
+            'rsi_window': 14,
+            'rsi_oversold': 30,
+            'rsi_overbought': 70,
+            'obv_threshold': 1.2,
+            'stop_loss_pct': 0.02,
+            'take_profit_pct': 0.01,
+            'max_position': 1
+        }
+    with open(param_files[0], "r") as f:
+        data = json.load(f)
+        return data.get("take_profit_optimization", data)
+
 def main():
     """
     Main function to run the parameter optimization.
@@ -353,20 +375,12 @@ def main():
     df = convert_to_4h_data(df_1min)
     print(f"4-hour data ready: {len(df)} records from {df.index[0]} to {df.index[-1]}")
     
-    # Define parameter ranges for optimization
-    param_ranges = {
-        'bb_window': [10, 15, 20, 25, 30],
-        'bb_std': [1.5, 2.0, 2.5, 3.0],
-        'rsi_window': [10, 14, 20],
-        'rsi_oversold': [20, 25, 30],
-        'rsi_overbought': [70, 75, 80],
-        'obv_threshold': [1.1, 1.2, 1.3, 1.5],
-        'stop_loss_pct': [0.015, 0.02, 0.025],  # 1.5%, 2%, 2.5%
-        'take_profit_pct': [0.01]  # Fixed at 1%
-    }
+    # Enhanced strategy parameters
+    params = load_latest_params()
+    print(f"Strategy parameters: {params}")
     
     # Run optimization
-    best_params, best_metrics = optimize_parameters(df, param_ranges)
+    best_params, best_metrics = optimize_parameters(df, params)
     
     # Print results
     print("\n" + "="*50)

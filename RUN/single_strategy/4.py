@@ -50,7 +50,10 @@ def apply_cost_model(trades_df, fee=1.5, slippage_long=1.0, slippage_short=2.0):
     return result_df
 
 # 讀取台指期資料
-df = pd.read_csv('TXF1_Minute_2020-01-01_2025-06-16.txt')
+file_path = 'TXF1_Minute_2020-01-01_2025-06-16.txt'
+df = pd.read_csv(file_path, encoding='utf-8')
+if 'timestamp' not in df.columns and 'Date' in df.columns and 'Time' in df.columns:
+    df['timestamp'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
 print("資料讀取完成，資料筆數:", len(df))
 print(df.head())
 
@@ -159,7 +162,9 @@ def apply_stop_loss(df, params):
 # =====================
 def main():
     # 讀取資料
-    df = pd.read_csv('TXF1_Minute_2020-01-01_2025-06-16.txt')
+    df = pd.read_csv(file_path, encoding='utf-8')
+    if 'timestamp' not in df.columns and 'Date' in df.columns and 'Time' in df.columns:
+        df['timestamp'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
     # 轉換為15分鐘K
     df['Datetime'] = pd.to_datetime(df['Date'] + ' ' + df['Time'])
     df = df.set_index('Datetime').resample('15T').agg({

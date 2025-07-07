@@ -18,6 +18,7 @@ from multi_strategy_system.strategy_combiner import (
     get_default_params, 
     get_default_weights
 )
+from multi_strategy_system.performance_analyzer import analyze_strategy_performance
 
 def load_sample_data(file_path: str = None) -> pd.DataFrame:
     """
@@ -58,7 +59,7 @@ def load_sample_data(file_path: str = None) -> pd.DataFrame:
         df = df[['open', 'high', 'low', 'close', 'volume']]
         
         # Take last 1000 rows for demo
-        df = df.tail(1000)
+        df = df.tail(1000).copy()
         
         print(f"Loaded {len(df)} rows of data from {file_path}")
         return df
@@ -104,6 +105,8 @@ def plot_results(df: pd.DataFrame, results: dict, save_path: str = None):
     
     # Add decision markers
     decisions = results['decisions']
+    # Ensure decisions align with df index
+    decisions = decisions.reindex(df.index, method='ffill')
     buy_points = df.index[decisions == 'Buy']
     sell_points = df.index[decisions == 'Sell']
     
@@ -234,6 +237,16 @@ def main():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     plot_path = f"multi_strategy_analysis_{timestamp}.png"
     plot_results(df, results, plot_path)
+    
+    # Performance analysis
+    print("\nPerforming performance analysis...")
+    performance_metrics = analyze_strategy_performance(df, results['decisions'])
+    
+    # Create performance analysis plot
+    performance_plot_path = f"performance_analysis_{timestamp}.png"
+    from multi_strategy_system.performance_analyzer import PerformanceAnalyzer
+    analyzer = PerformanceAnalyzer()
+    analyzer.plot_performance_analysis(df, performance_metrics, performance_plot_path)
     
     # Save results to CSV
     print("\nSaving results to CSV...")
