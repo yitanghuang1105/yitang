@@ -1,0 +1,14 @@
+{
+  "rsi_window": 14.0,
+  "rsi_oversold": 30.0,
+  "rsi_overbought": 70.0,
+  "bb_window": 20.0,
+  "bb_std": 2.0,
+  "obv_window": 10.0,
+  "obv_threshold": 1.2,
+  "rsi_weight": 0.4,
+  "bollinger_bands_weight": 0.35,
+  "obv_weight": 0.25,
+  "buy_threshold": 70.0,
+  "sell_threshold": 30.0
+}
