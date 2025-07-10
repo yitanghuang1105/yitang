@@ -105,6 +105,15 @@ class MultiStrategyParameterPlatform:
         status_bar = ttk.Label(main_frame, textvariable=self.status_var, relief=tk.SUNKEN)
         status_bar.grid(row=3, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=(10, 0))
         
+        # 新增：大大的建議 Label
+        self.suggestion_label = ttk.Label(
+            main_frame,
+            text="建議：勾選 Reverse 和 Reverse2，回測績效會更好！",
+            font=("Arial", 16, "bold"),
+            foreground="red"
+        )
+        self.suggestion_label.grid(row=4, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=(10, 20))
+        
     def create_strategy_parameters_tab(self, parent):
         """Create strategy parameters tab"""
         # RSI Parameters
@@ -536,6 +545,9 @@ Can work together with Reverse Mode:
         try:
             # Get current parameters
             params = self.get_current_parameters()
+            # 新增：分析前提醒
+            if not params.get('reverse_mode', False) or not params.get('reverse2_mode', False):
+                self.status_var.set("建議：勾選 Reverse 和 Reverse2，回測績效會更好！")
             
             # Validate weights
             total_weight = params['rsi_weight'] + params['bollinger_bands_weight'] + params['obv_weight']
