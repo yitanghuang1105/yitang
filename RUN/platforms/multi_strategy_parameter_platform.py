@@ -201,7 +201,7 @@ class MultiStrategyParameterPlatform:
         # Configure grid weights
         parent.columnconfigure(0, weight=1)
         parent.rowconfigure(0, weight=1)
-        
+    
     def create_param_widgets(self, parent, params, start_row, start_col):
         """Create parameter widgets for a given set of parameters"""
         row = start_row
@@ -224,7 +224,7 @@ class MultiStrategyParameterPlatform:
         
         # Configure column weights
         parent.columnconfigure(start_col+1, weight=1)
-        
+    
     def validate_weights(self, *args):
         """Validate that weights sum to 1.0"""
         try:
@@ -362,7 +362,7 @@ class MultiStrategyParameterPlatform:
         """Run multi-strategy analysis"""
         try:
             # 新增提示訊息
-            messagebox.showinfo("Info", "Run successfully and wait a moment?")
+            messagebox.showinfo("Info", "Run successfully and wait a moment")
             # 顯示並啟動進度條
             self.progress.grid()
             self.progress.start(10)
@@ -379,8 +379,8 @@ class MultiStrategyParameterPlatform:
             # Validate thresholds
             if params['buy_threshold'] <= params['sell_threshold']:
                 messagebox.showerror("Error", "Buy threshold must be higher than sell threshold")
-                return
-            
+            return
+        
             # Save parameters to temporary file
             temp_file = f"temp_params_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
             with open(temp_file, 'w', encoding='utf-8') as f:
@@ -521,7 +521,7 @@ class MultiStrategyParameterPlatform:
                 
                 # Plot 3: Combined score with zones
                 ax3 = axes[2]
-                combined_score = results['combined_score']
+        combined_score = results['combined_score']
                 ax3.plot(df.index, combined_score, label='Combined Score', linewidth=2.5, color='purple')
                 ax3.axhline(y=params['buy_threshold'], color='green', linestyle='--', alpha=0.7, 
                            label=f'Buy Threshold ({params["buy_threshold"]})', linewidth=2)
@@ -713,7 +713,7 @@ class MultiStrategyParameterPlatform:
                 
             except ImportError as e:
                 messagebox.showerror("錯誤", f"缺少必要模組: {e}\n請確保已安裝 pandas, numpy, matplotlib")
-            except Exception as e:
+        except Exception as e:
                 messagebox.showerror("錯誤", f"生成圖表時發生錯誤: {e}")
                 
         except Exception as e:

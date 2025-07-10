@@ -265,11 +265,12 @@ class PositionSizingCalculator:
         # Calculate position value
         position_value = available_capital * position_size_pct
         
-        # Calculate quantity
-        quantity = position_value / entry_price
+        # Calculate initial quantity
+        quantity = int(position_value / entry_price)
         
-        # Round down to whole number
-        quantity = int(quantity)
+        # 僅允許在 available_capital 足夠時下單，否則最大只買得起的數量
+        max_affordable_quantity = int(available_capital // entry_price)
+        quantity = min(quantity, max_affordable_quantity)
         
         return max(1, quantity)  # Minimum 1 unit
     
