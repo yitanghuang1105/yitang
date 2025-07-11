@@ -114,6 +114,20 @@ class SuperSingleStrategyPlatform:
         self.status_var = tk.StringVar(value="就緒 Ready")
         status_bar = ttk.Label(main_frame, textvariable=self.status_var, relief=tk.SUNKEN)
         status_bar.grid(row=3, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=(10, 0))
+
+        # 新增：操作說明（移到最下方）
+        instruction_text = (
+            "【操作說明】\n"
+            "1. 載入資料：點擊下方『載入資料』，選擇你的資料檔案（需有 open、high、low、close、volume 欄位）。\n"
+            "2. 設定參數（可選）：在上方『策略參數』分頁調整技術指標與交易參數，預設值即可。\n"
+            "3. 執行分析：點擊『執行基礎分析』或『完整分析』，等待分析完成。\n"
+            "4. 匯出報告：點擊『匯出報告』，系統會自動產生圖表與 Excel/CSV 報告。\n"
+            "5. 開啟結果資料夾：點擊『開啟結果資料夾』查看所有匯出檔案。\n\n"
+            "如遇錯誤，請檢查資料格式或將錯誤訊息截圖給開發者協助。"
+        )
+        instruction_label = ttk.Label(main_frame, text=instruction_text, justify=tk.LEFT, foreground="blue", font=("Arial", 10))
+        instruction_label.grid(row=4, column=0, columnspan=4, sticky=tk.W, pady=(10, 10))
+        main_frame.rowconfigure(1, weight=1)
     
     def create_strategy_parameters_tab(self, parent):
         """創建策略參數分頁"""
@@ -331,8 +345,10 @@ class SuperSingleStrategyPlatform:
                 file_path = data_files[0]
                 print(f"📥 載入資料檔案: {file_path}")
                 self.df = pd.read_csv(file_path, encoding='utf-8')
-                if 'timestamp' not in self.df.columns and 'Date' in self.df.columns and 'Time' in self.df.columns:
-                    self.df['timestamp'] = pd.to_datetime(self.df['Date'] + ' ' + self.df['Time'])
+                # 自動將所有欄位轉小寫
+                self.df.columns = [col.lower() for col in self.df.columns]
+                if 'timestamp' not in self.df.columns and 'date' in self.df.columns and 'time' in self.df.columns:
+                    self.df['timestamp'] = pd.to_datetime(self.df['date'] + ' ' + self.df['time'])
                 self.df.set_index('timestamp', inplace=True)
                 self.status_var.set(f"資料載入成功: {len(self.df)} 筆記錄")
                 print(f"✅ 資料載入完成: {len(self.df):,} 筆記錄")
@@ -372,8 +388,10 @@ class SuperSingleStrategyPlatform:
             try:
                 print(f"📥 載入資料檔案: {file_path}")
                 self.df = pd.read_csv(file_path, encoding='utf-8')
-                if 'timestamp' not in self.df.columns and 'Date' in self.df.columns and 'Time' in self.df.columns:
-                    self.df['timestamp'] = pd.to_datetime(self.df['Date'] + ' ' + self.df['Time'])
+                # 自動將所有欄位轉小寫
+                self.df.columns = [col.lower() for col in self.df.columns]
+                if 'timestamp' not in self.df.columns and 'date' in self.df.columns and 'time' in self.df.columns:
+                    self.df['timestamp'] = pd.to_datetime(self.df['date'] + ' ' + self.df['time'])
                 self.df.set_index('timestamp', inplace=True)
                 self.status_var.set(f"資料載入成功: {len(self.df)} 筆記錄")
                 print(f"✅ 資料載入完成: {len(self.df):,} 筆記錄")

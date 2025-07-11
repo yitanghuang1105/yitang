@@ -30,21 +30,6 @@ class PlatformLauncher:
                 "file": os.path.join(self.base_path, "param_test/multi_strategy_parameter_platform.py"),
                 "category": "參數調整"
             },
-            "超級單策略平台": {
-                "description": "整合單策略開發的完整平台",
-                "file": os.path.join(self.base_path, "platforms/super_single_strategy_platform.py"), 
-                "category": "策略開發"
-            },
-            "參數測試平台": {
-                "description": "進階參數調整和優化工具",
-                "file": os.path.join(self.base_path, "param_test/multi_strategy_parameter_platform.py"),
-                "category": "參數測試"
-            },
-            "多策略系統演示": {
-                "description": "多策略系統的核心演示",
-                "file": os.path.join(self.base_path, "multi_strategy_system/demo_fixed.py"),
-                "category": "系統演示"
-            },
             "簡單測試工具": {
                 "description": "基本功能測試和驗證",
                 "file": os.path.join(self.base_path, "multi_strategy_system/simple_test.py"),

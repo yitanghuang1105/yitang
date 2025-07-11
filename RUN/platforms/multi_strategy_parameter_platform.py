@@ -21,10 +21,10 @@ class MultiStrategyParameterPlatform:
         self.default_params = {
             # Strategy parameters
             'rsi_window': 14,
-            'rsi_oversold': 30,
-            'rsi_overbought': 70,
+            'rsi_oversold': 20,  # 原本30，改為20
+            'rsi_overbought': 80,  # 原本70，改為80
             'bb_window': 20,
-            'bb_std': 2.0,
+            'bb_std': 2.5,  # 原本2.0，改為2.5
             'obv_window': 10,
             'obv_threshold': 1.2,
             
@@ -35,7 +35,11 @@ class MultiStrategyParameterPlatform:
             # Strategy weights
             'rsi_weight': 0.4,
             'bollinger_bands_weight': 0.35,
-            'obv_weight': 0.25
+            'obv_weight': 0.25,
+            
+            # Reverse modes
+            'reverse_mode': False,
+            'reverse2_mode': False
         }
         
         self.current_params = self.default_params.copy()
@@ -75,6 +79,16 @@ class MultiStrategyParameterPlatform:
         notebook.add(decision_frame, text="Decision Thresholds")
         self.create_decision_thresholds_tab(decision_frame)
         
+        # Reverse Mode Tab
+        reverse_frame = ttk.Frame(notebook, padding="10")
+        notebook.add(reverse_frame, text="Reverse Mode")
+        self.create_reverse_mode_tab(reverse_frame)
+        
+        # Reverse2 Mode Tab
+        reverse2_frame = ttk.Frame(notebook, padding="10")
+        notebook.add(reverse2_frame, text="Reverse2 Mode")
+        self.create_reverse2_mode_tab(reverse2_frame)
+        
         # Buttons frame
         button_frame = ttk.Frame(main_frame)
         button_frame.grid(row=2, column=0, columnspan=4, pady=20)
@@ -90,11 +104,6 @@ class MultiStrategyParameterPlatform:
         self.status_var = tk.StringVar(value="Ready")
         status_bar = ttk.Label(main_frame, textvariable=self.status_var, relief=tk.SUNKEN)
         status_bar.grid(row=3, column=0, columnspan=4, sticky=(tk.W, tk.E), pady=(10, 0))
-        
-        # Progress bar for loading
-        self.progress = ttk.Progressbar(main_frame, mode='indeterminate', length=300)
-        self.progress.grid(row=4, column=0, columnspan=4, pady=(10, 0))
-        self.progress.grid_remove()
         
     def create_strategy_parameters_tab(self, parent):
         """Create strategy parameters tab"""
@@ -131,6 +140,16 @@ class MultiStrategyParameterPlatform:
         }
         
         self.create_param_widgets(obv_frame, obv_params, 0, 0)
+        
+        # 1. 在 __init__ 新增 fee_rate 變數
+        self.fee_rate_var = tk.DoubleVar(value=0.0003)  # 預設0.03%
+
+        # 2. 在 create_strategy_parameters_tab 增加手續費率輸入欄
+        fee_label = ttk.Label(parent, text="手續費率(%)：")
+        fee_label.grid(row=1, column=0, sticky=tk.W, pady=2)
+        fee_entry = ttk.Entry(parent, textvariable=self.fee_rate_var, width=10)
+        fee_entry.grid(row=1, column=1, sticky=tk.W, pady=2)
+        fee_entry.insert(0, "0.03")
         
         # Configure grid weights
         parent.columnconfigure(0, weight=1)
@@ -201,6 +220,151 @@ class MultiStrategyParameterPlatform:
         # Configure grid weights
         parent.columnconfigure(0, weight=1)
         parent.rowconfigure(0, weight=1)
+        
+    def create_reverse_mode_tab(self, parent):
+        """Create reverse mode tab"""
+        # Reverse mode frame
+        reverse_frame = ttk.LabelFrame(parent, text="Reverse Mode Settings", padding="20")
+        reverse_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=20, pady=20)
+        
+        # Reverse mode checkbox
+        self.reverse_mode_var = tk.BooleanVar(value=False)
+        reverse_checkbox = ttk.Checkbutton(
+            reverse_frame, 
+            text="Enable Reverse Mode", 
+            variable=self.reverse_mode_var,
+            command=self.on_reverse_mode_change
+        )
+        reverse_checkbox.grid(row=0, column=0, sticky=tk.W, pady=(0, 10))
+        
+        # Reverse mode description
+        description_text = """
+Reverse Mode Explanation:
+• Normal Mode: High scores → Buy signals, Low scores → Sell signals
+• Reverse Mode: High scores → Sell signals, Low scores → Buy signals
+
+This allows you to trade against the strategy signals, 
+useful for contrarian trading approaches.
+        """
+        description_label = ttk.Label(
+            reverse_frame, 
+            text=description_text, 
+            font=("Arial", 10),
+            justify=tk.LEFT
+        )
+        description_label.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
+        
+        # Status indicator
+        self.reverse_status_var = tk.StringVar(value="Mode: Normal")
+        status_label = ttk.Label(
+            reverse_frame, 
+            textvariable=self.reverse_status_var, 
+            font=("Arial", 12, "bold"),
+            foreground="green"
+        )
+        status_label.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(20, 0))
+        
+        # Configure grid weights
+        parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(0, weight=1)
+        
+    def on_reverse_mode_change(self):
+        """Handle reverse mode checkbox change"""
+        self.update_combined_mode_display()
+        
+    def create_reverse2_mode_tab(self, parent):
+        """Create reverse2 mode tab"""
+        # Reverse2 mode frame
+        reverse2_frame = ttk.LabelFrame(parent, text="Reverse2 Mode Settings", padding="20")
+        reverse2_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=20, pady=20)
+        
+        # Reverse2 mode checkbox
+        self.reverse2_mode_var = tk.BooleanVar(value=False)
+        reverse2_checkbox = ttk.Checkbutton(
+            reverse2_frame, 
+            text="Enable Reverse2 Mode", 
+            variable=self.reverse2_mode_var,
+            command=self.on_reverse2_mode_change
+        )
+        reverse2_checkbox.grid(row=0, column=0, sticky=tk.W, pady=(0, 10))
+        
+        # Reverse2 mode description
+        description_text = """
+Reverse2 Mode Explanation:
+• Normal Mode: High scores → Buy signals, Low scores → Sell signals
+• Reverse2 Mode: Separately reverses entry and exit signals
+
+Reverse2 Logic:
+• Reverse Entry: High scores → Sell signals, Low scores → Buy signals
+• Reverse Exit: Exit conditions are reversed (opposite thresholds)
+
+Can work together with Reverse Mode:
+• Reverse + Reverse2: Both modes active simultaneously
+• Allows fine-grained control over entry and exit logic
+        """
+        description_label = ttk.Label(
+            reverse2_frame, 
+            text=description_text, 
+            font=("Arial", 10),
+            justify=tk.LEFT
+        )
+        description_label.grid(row=1, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
+        
+        # Status indicator
+        self.reverse2_status_var = tk.StringVar(value="Mode: Normal")
+        status_label = ttk.Label(
+            reverse2_frame, 
+            textvariable=self.reverse2_status_var, 
+            font=("Arial", 12, "bold"),
+            foreground="green"
+        )
+        status_label.grid(row=2, column=0, sticky=(tk.W, tk.E), pady=(20, 0))
+        
+        # Mode combination indicator
+        self.combined_mode_var = tk.StringVar(value="Combined Mode: Normal")
+        combined_label = ttk.Label(
+            reverse2_frame, 
+            textvariable=self.combined_mode_var, 
+            font=("Arial", 11, "bold"),
+            foreground="blue"
+        )
+        combined_label.grid(row=3, column=0, sticky=(tk.W, tk.E), pady=(10, 0))
+        
+        # Configure grid weights
+        parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(0, weight=1)
+        
+    def on_reverse2_mode_change(self):
+        """Handle reverse2 mode checkbox change"""
+        self.update_combined_mode_display()
+        
+    def update_combined_mode_display(self):
+        """Update the combined mode display"""
+        reverse = self.reverse_mode_var.get()
+        reverse2 = self.reverse2_mode_var.get()
+        
+        if reverse2:
+            self.reverse2_status_var.set("Mode: Reverse2")
+        else:
+            self.reverse2_status_var.set("Mode: Normal")
+        
+        # Update combined mode display
+        mode_parts = []
+        if reverse:
+            mode_parts.append('Reverse')
+        if reverse2:
+            mode_parts.append('Reverse2')
+        if not mode_parts:
+            mode_parts.append('Normal')
+        
+        combined_mode = '+'.join(mode_parts)
+        self.combined_mode_var.set(f"Combined Mode: {combined_mode}")
+        
+        # Also update reverse mode display
+        if reverse:
+            self.reverse_status_var.set("Mode: Reverse")
+        else:
+            self.reverse_status_var.set("Mode: Normal")
     
     def create_param_widgets(self, parent, params, start_row, start_col):
         """Create parameter widgets for a given set of parameters"""
@@ -292,6 +456,13 @@ class MultiStrategyParameterPlatform:
                 params[param] = var.get()
             except tk.TclError:
                 params[param] = self.default_params.get(param, 0)
+        
+        # Add reverse mode parameters
+        params['reverse_mode'] = self.reverse_mode_var.get()
+        params['reverse2_mode'] = self.reverse2_mode_var.get()
+        # 3. 在 get_current_parameters() 納入 fee_rate
+        params['fee_rate'] = self.fee_rate_var.get() / 100  # 轉為小數
+        
         return params
     
     def load_parameters(self):
@@ -313,6 +484,13 @@ class MultiStrategyParameterPlatform:
                 for param, value in params.items():
                     if param in self.param_widgets:
                         self.param_widgets[param][0].set(value)
+                    elif param == 'reverse_mode':
+                        self.reverse_mode_var.set(value)
+                    elif param == 'reverse2_mode':
+                        self.reverse2_mode_var.set(value)
+                
+                # Update combined mode display
+                self.update_combined_mode_display()
                 
                 self.status_var.set(f"Parameters loaded from {os.path.basename(file_path)}")
                 
@@ -356,18 +534,18 @@ class MultiStrategyParameterPlatform:
                 if param in self.param_widgets:
                     self.param_widgets[param][0].set(value)
             
+            # Reset reverse mode
+            self.reverse_mode_var.set(False)
+            self.reverse2_mode_var.set(False)
+            
+            # Update combined mode display
+            self.update_combined_mode_display()
+            
             self.status_var.set("Parameters reset to default values")
     
     def run_analysis(self):
         """Run multi-strategy analysis"""
         try:
-            # 新增提示訊息
-            messagebox.showinfo("Info", "Run successfully and wait a moment")
-            # 顯示並啟動進度條
-            self.progress.grid()
-            self.progress.start(10)
-            self.status_var.set("Running analysis...")
-            self.root.update()
             # Get current parameters
             params = self.get_current_parameters()
             
@@ -380,16 +558,26 @@ class MultiStrategyParameterPlatform:
             if params['buy_threshold'] <= params['sell_threshold']:
                 messagebox.showerror("Error", "Buy threshold must be higher than sell threshold")
             return
+            
+            # Create output directory
+            output_dir = os.path.join('RUN', 'result')
+            if not os.path.exists(output_dir):
+                os.makedirs(output_dir)
+
+            # Generate timestamp for file naming
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         
             # Save parameters to temporary file
-            temp_file = f"temp_params_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+            temp_file = f"temp_params_{timestamp}.json"
             with open(temp_file, 'w', encoding='utf-8') as f:
                 json.dump(params, f, indent=2)
             
             # Run analysis script
-            script_path = os.path.join("multi_strategy_system", "demo.py")
+            script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "multi_strategy_system", "demo.py"))
             if os.path.exists(script_path):
-                subprocess.run([sys.executable, script_path, "--params", temp_file])
+                plot_filename = f"multi_strategy_analysis_{timestamp}.png"
+                plot_path = os.path.join(output_dir, plot_filename)
+                subprocess.run([sys.executable, script_path, "--params", temp_file, "--plot", plot_path])
                 self.status_var.set("Multi-strategy analysis completed")
             else:
                 messagebox.showerror("Error", f"Analysis script not found: {script_path}")
@@ -397,269 +585,18 @@ class MultiStrategyParameterPlatform:
             # Clean up temp file
             if os.path.exists(temp_file):
                 os.remove(temp_file)
-            # 分析結束後隱藏進度條
-            self.progress.stop()
-            self.progress.grid_remove()
                 
         except Exception as e:
-            self.progress.stop()
-            self.progress.grid_remove()
             messagebox.showerror("Error", f"Failed to run analysis: {e}")
     
     def export_results(self):
-        """Export analysis results with plots"""
+        """Export analysis results"""
         try:
             # Get current parameters
             params = self.get_current_parameters()
-            
-            # Validate parameters before export
-            total_weight = params['rsi_weight'] + params['bollinger_bands_weight'] + params['obv_weight']
-            if abs(total_weight - 1.0) > 0.01:
-                messagebox.showwarning("Warning", f"Weights sum to {total_weight:.2f}, not 1.0. Consider auto-balancing.")
-            
-            if params['buy_threshold'] <= params['sell_threshold']:
-                messagebox.showerror("Error", "Buy threshold must be higher than sell threshold")
-                return
-            
-            # Create output directory
-            output_dir = "output"
-            if not os.path.exists(output_dir):
-                os.makedirs(output_dir)
-            
-            # Generate timestamp for file naming
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            
-            # Run analysis and generate plots
-            self.status_var.set("Generating analysis and plots...")
-            self.root.update()
-            
-            # Import required modules for analysis
-            try:
-                import pandas as pd
-                import numpy as np
-                import matplotlib.pyplot as plt
-                import sys
-                import os
-                
-                # Add multi_strategy_system to path
-                sys.path.append('multi_strategy_system')
-                from multi_strategy_system.strategy_combiner import run_multi_strategy_analysis
-                from multi_strategy_system.demo import load_sample_data, plot_results
-                from multi_strategy_system.performance_analyzer import PerformanceAnalyzer
-                
-                # Load sample data
-                df = load_sample_data()
-                
-                # Prepare parameters for analysis
-                analysis_params = {
-                    'rsi_window': params['rsi_window'],
-                    'rsi_oversold': params['rsi_oversold'],
-                    'rsi_overbought': params['rsi_overbought'],
-                    'bb_window': params['bb_window'],
-                    'bb_std': params['bb_std'],
-                    'obv_window': params['obv_window'],
-                    'obv_threshold': params['obv_threshold'],
-                    'buy_threshold': params['buy_threshold'],
-                    'sell_threshold': params['sell_threshold']
-                }
-                
-                # Prepare weights
-                weights = {
-                    'rsi': params['rsi_weight'],
-                    'bollinger_bands': params['bollinger_bands_weight'],
-                    'obv': params['obv_weight']
-                }
-                
-                # Run analysis
-                results = run_multi_strategy_analysis(df, analysis_params, weights)
-                
-                # Generate plot
-                plot_filename = f"multi_strategy_analysis_{timestamp}.png"
-                plot_path = os.path.join(output_dir, plot_filename)
-                
-                # Create the plot with more comprehensive analysis (including equity curve)
-                fig, axes = plt.subplots(8, 1, figsize=(16, 24))
-                fig.suptitle('Multi-Strategy Analysis Results with Equity Curve', fontsize=18, fontweight='bold')
-                
-                # Plot 1: Price and decisions
-                ax1 = axes[0]
-                ax1.plot(df.index, df['close'], label='Close Price', linewidth=1.5, alpha=0.8)
-                
-                # Add decision markers
-                decisions = results['decisions']
-                decisions = decisions.reindex(df.index, method='ffill')
-                buy_points = df.index[decisions == 'Buy']
-                sell_points = df.index[decisions == 'Sell']
-                
-                ax1.scatter(buy_points, df.loc[buy_points, 'close'], 
-                           color='green', marker='^', s=80, label='Buy Signal', alpha=0.9, zorder=5)
-                ax1.scatter(sell_points, df.loc[sell_points, 'close'], 
-                           color='red', marker='v', s=80, label='Sell Signal', alpha=0.9, zorder=5)
-                
-                ax1.set_title('Price and Trading Signals', fontsize=14, fontweight='bold')
-                ax1.legend(loc='upper left')
-                ax1.grid(True, alpha=0.3)
-                ax1.set_ylabel('Price')
-                
-                # Plot 2: Individual strategy scores
-                ax2 = axes[1]
-                individual_scores = results['individual_scores']
-                colors = ['blue', 'orange', 'green']
-                for i, (name, score) in enumerate(individual_scores.items()):
-                    ax2.plot(df.index, score, label=name.replace('_', ' ').title(), 
-                            alpha=0.8, linewidth=1.5, color=colors[i])
-                
-                ax2.axhline(y=params['buy_threshold'], color='green', linestyle='--', alpha=0.7, 
-                           label=f'Buy Threshold ({params["buy_threshold"]})', linewidth=2)
-                ax2.axhline(y=params['sell_threshold'], color='red', linestyle='--', alpha=0.7, 
-                           label=f'Sell Threshold ({params["sell_threshold"]})', linewidth=2)
-                ax2.set_title('Individual Strategy Scores', fontsize=14, fontweight='bold')
-                ax2.legend(loc='upper left')
-                ax2.grid(True, alpha=0.3)
-                ax2.set_ylim(0, 100)
-                ax2.set_ylabel('Score (0-100)')
-                
-                # Plot 3: Combined score with zones
-                ax3 = axes[2]
-        combined_score = results['combined_score']
-                ax3.plot(df.index, combined_score, label='Combined Score', linewidth=2.5, color='purple')
-                ax3.axhline(y=params['buy_threshold'], color='green', linestyle='--', alpha=0.7, 
-                           label=f'Buy Threshold ({params["buy_threshold"]})', linewidth=2)
-                ax3.axhline(y=params['sell_threshold'], color='red', linestyle='--', alpha=0.7, 
-                           label=f'Sell Threshold ({params["sell_threshold"]})', linewidth=2)
-                ax3.fill_between(df.index, params['buy_threshold'], 100, alpha=0.3, color='green', label='Buy Zone')
-                ax3.fill_between(df.index, 0, params['sell_threshold'], alpha=0.3, color='red', label='Sell Zone')
-                ax3.fill_between(df.index, params['sell_threshold'], params['buy_threshold'], alpha=0.3, color='yellow', label='Hold Zone')
-                ax3.set_title('Combined Strategy Score with Decision Zones', fontsize=14, fontweight='bold')
-                ax3.legend(loc='upper left')
-                ax3.grid(True, alpha=0.3)
-                ax3.set_ylim(0, 100)
-                ax3.set_ylabel('Combined Score')
-                
-                # Plot 4: Strategy weights visualization
-                ax4 = axes[3]
-                weights = results['weights_used']
-                strategy_names = [name.replace('_', ' ').title() for name in weights.keys()]
-                weight_values = list(weights.values())
-                colors = ['skyblue', 'lightcoral', 'lightgreen']
-                
-                bars = ax4.bar(strategy_names, weight_values, color=colors, alpha=0.8, edgecolor='black', linewidth=1)
-                ax4.set_title('Strategy Weights Distribution', fontsize=14, fontweight='bold')
-                ax4.set_ylabel('Weight')
-                ax4.set_ylim(0, 1)
-                
-                # Add value labels on bars
-                for bar, value in zip(bars, weight_values):
-                    height = bar.get_height()
-                    ax4.text(bar.get_x() + bar.get_width()/2., height + 0.01,
-                            f'{value:.1%}', ha='center', va='bottom', fontweight='bold')
-                
-                # Plot 5: Signal distribution
-                ax5 = axes[4]
-                signal_counts = decisions.value_counts()
-                signal_colors = {'Buy': 'green', 'Sell': 'red', 'Hold': 'gray'}
-                signal_values = [signal_counts.get('Buy', 0), signal_counts.get('Sell', 0), signal_counts.get('Hold', 0)]
-                signal_labels = ['Buy', 'Sell', 'Hold']
-                
-                bars = ax5.bar(signal_labels, signal_values, color=[signal_colors[label] for label in signal_labels], 
-                              alpha=0.8, edgecolor='black', linewidth=1)
-                ax5.set_title('Signal Distribution', fontsize=14, fontweight='bold')
-                ax5.set_ylabel('Number of Signals')
-                
-                # Add value labels on bars
-                for bar, value in zip(bars, signal_values):
-                    height = bar.get_height()
-                    ax5.text(bar.get_x() + bar.get_width()/2., height + max(signal_values)*0.01,
-                            f'{value}', ha='center', va='bottom', fontweight='bold')
-                
-                # Plot 6: Volume analysis
-                ax6 = axes[5]
-                ax6.bar(df.index, df['volume'], alpha=0.6, color='blue', label='Volume')
-                
-                # Highlight volume on signal days
-                if len(buy_points) > 0:
-                    ax6.bar(buy_points, df.loc[buy_points, 'volume'], alpha=0.8, color='green', label='Buy Signal Volume')
-                if len(sell_points) > 0:
-                    ax6.bar(sell_points, df.loc[sell_points, 'volume'], alpha=0.8, color='red', label='Sell Signal Volume')
-                
-                ax6.set_title('Volume Analysis', fontsize=14, fontweight='bold')
-                ax6.legend(loc='upper left')
-                ax6.grid(True, alpha=0.3)
-                ax6.set_ylabel('Volume')
-                
-                # Plot 7: Equity Curve vs Buy & Hold
-                ax7 = axes[6]
-                
-                # Calculate equity curve for strategy
-                analyzer = PerformanceAnalyzer(initial_capital=100000)
-                equity_curve = analyzer.calculate_equity_curve(df, decisions, position_size=0.1)
-                
-                # Calculate Buy & Hold equity curve
-                initial_price = df['close'].iloc[0]
-                buy_hold_equity = 100000 * (df['close'] / initial_price)
-                
-                # Plot both equity curves
-                ax7.plot(df.index, equity_curve, label='Strategy Equity', linewidth=2.5, color='blue')
-                ax7.plot(df.index, buy_hold_equity, label='Buy & Hold', linewidth=2.5, color='red', linestyle='--')
-                
-                # Calculate and display performance metrics
-                strategy_return = (equity_curve.iloc[-1] - 100000) / 100000 * 100
-                buy_hold_return = (buy_hold_equity.iloc[-1] - 100000) / 100000 * 100
-                
-                ax7.set_title(f'Equity Curve Comparison\nStrategy: {strategy_return:.2f}% vs Buy & Hold: {buy_hold_return:.2f}%', 
-                             fontsize=14, fontweight='bold')
-                ax7.legend(loc='upper left')
-                ax7.grid(True, alpha=0.3)
-                ax7.set_ylabel('Equity ($)')
-                
-                # Plot 8: Performance Metrics Summary
-                ax8 = axes[7]
-                
-                # Calculate additional performance metrics
-                mdd, peak_date, trough_date = analyzer.calculate_mdd(equity_curve)
-                returns = analyzer.calculate_returns(equity_curve)
-                sharpe_ratio = analyzer.calculate_sharpe_ratio(returns)
-                win_rate = analyzer.calculate_win_rate(equity_curve)
-                
-                # Create performance summary table
-                metrics_data = [
-                    ['Total Return', f'{strategy_return:.2f}%'],
-                    ['Buy & Hold Return', f'{buy_hold_return:.2f}%'],
-                    ['Max Drawdown', f'{mdd:.2f}%'],
-                    ['Sharpe Ratio', f'{sharpe_ratio:.2f}'],
-                    ['Win Rate', f'{win_rate:.1f}%'],
-                    ['Time Period', f'{len(df)} minutes ({len(df)/60:.1f} hours)']
-                ]
-                
-                # Create table
-                table = ax8.table(cellText=metrics_data, 
-                                 colLabels=['Metric', 'Value'],
-                                 cellLoc='center',
-                                 loc='center')
-                table.auto_set_font_size(False)
-                table.set_fontsize(12)
-                table.scale(1, 2)
-                
-                # Style the table
-                for i in range(len(metrics_data) + 1):
-                    for j in range(2):
-                        cell = table[(i, j)]
-                        if i == 0:  # Header row
-                            cell.set_facecolor('#4CAF50')
-                            cell.set_text_props(weight='bold', color='white')
-                        else:
-                            cell.set_facecolor('#f0f0f0' if i % 2 == 0 else 'white')
-                
-                ax8.set_title('Performance Metrics Summary', fontsize=14, fontweight='bold')
-                ax8.axis('off')
-                ax8.set_xlabel('Time')
-                
-                plt.tight_layout()
-                plt.savefig(plot_path, dpi=300, bbox_inches='tight')
-                plt.close()
                 
                 # Create results summary
-                results_summary = {
+            results = {
                     'parameters': params,
                     'weights_summary': {
                         'rsi': f"{params['rsi_weight']:.1%}",
@@ -670,60 +607,46 @@ class MultiStrategyParameterPlatform:
                         'buy': params['buy_threshold'],
                         'sell': params['sell_threshold']
                     },
-                    'analysis_results': {
-                        'total_signals': len(decisions[decisions != 'Hold']),
-                        'buy_signals': len(buy_points),
-                        'sell_signals': len(sell_points),
-                        'avg_combined_score': float(results['combined_score'].mean()),
-                        'score_std': float(results['combined_score'].std())
-                    },
-                    'files_generated': {
-                        'plot': plot_filename,
-                        'timestamp': timestamp
-                    },
                     'exported_at': datetime.now().isoformat()
                 }
                 
-                # Show success message with file locations
-                success_msg = f"""✅ 分析完成並匯出成功！
-
-📊 生成的文件:
-• 圖表: {plot_filename}
-
-📁 保存位置: {output_dir}
-
-📈 分析摘要:
-• 總信號數: {results_summary['analysis_results']['total_signals']}
-• 買入信號: {results_summary['analysis_results']['buy_signals']}
-• 賣出信號: {results_summary['analysis_results']['sell_signals']}
-• 平均綜合分數: {results_summary['analysis_results']['avg_combined_score']:.2f}
-
-是否要開啟圖表文件？"""
+            file_path = filedialog.asksaveasfilename(
+                title="Export Results",
+                defaultextension=".json",
+                filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+            )
+            
+            if file_path:
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    json.dump(results, f, indent=2, ensure_ascii=False)
                 
-                if messagebox.askyesno("匯出成功", success_msg):
-                    # Open the plot file
-                    if sys.platform == "win32":
-                        os.startfile(plot_path)
-                    elif sys.platform == "darwin":
-                        subprocess.run(["open", plot_path])
-                    else:
-                        subprocess.run(["xdg-open", plot_path])
-                
-                self.status_var.set(f"✅ 分析完成 - 圖表和結果已保存到 {output_dir}")
-                
-            except ImportError as e:
-                messagebox.showerror("錯誤", f"缺少必要模組: {e}\n請確保已安裝 pandas, numpy, matplotlib")
-        except Exception as e:
-                messagebox.showerror("錯誤", f"生成圖表時發生錯誤: {e}")
+                self.status_var.set(f"Results exported to {os.path.basename(file_path)}")
                 
         except Exception as e:
-            messagebox.showerror("錯誤", f"匯出失敗: {e}")
+            messagebox.showerror("Error", f"Failed to export results: {e}")
 
 def main():
     """Main function"""
+    print("Starting Multi-Strategy Parameter Platform...")
+    print("Creating main window...")
+    
     root = tk.Tk()
+    root.title("Multi-Strategy Parameter Platform")
+    root.geometry("1200x800")
+    
+    # Ensure window is on top
+    root.lift()
+    root.attributes('-topmost', True)
+    root.after_idle(root.attributes, '-topmost', False)
+    
+    print("Creating application...")
     app = MultiStrategyParameterPlatform(root)
+    
+    print("GUI created successfully. Starting mainloop...")
+    print("If you don't see the window, check if it's minimized or behind other windows.")
+    
     root.mainloop()
+    print("GUI closed.")
 
 if __name__ == "__main__":
     main() 

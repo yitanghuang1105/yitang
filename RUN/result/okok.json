@@ -1,0 +1,28 @@
+{
+  "parameters": {
+    "rsi_window": 14.0,
+    "rsi_oversold": 30.0,
+    "rsi_overbought": 70.0,
+    "bb_window": 20.0,
+    "bb_std": 2.0,
+    "obv_window": 10.0,
+    "obv_threshold": 1.2,
+    "rsi_weight": 0.4,
+    "bollinger_bands_weight": 0.35,
+    "obv_weight": 0.25,
+    "buy_threshold": 70.0,
+    "sell_threshold": 30.0,
+    "reverse_mode": false,
+    "reverse2_mode": false
+  },
+  "weights_summary": {
+    "rsi": "40.0%",
+    "bollinger_bands": "35.0%",
+    "obv": "25.0%"
+  },
+  "decision_thresholds": {
+    "buy": 70.0,
+    "sell": 30.0
+  },
+  "exported_at": "2025-07-10T11:27:18.168681"
+}

@@ -10,6 +10,7 @@ import os
 from datetime import datetime
 import subprocess
 import sys
+import gc
 
 class MultiStrategyParameterPlatform:
     def __init__(self, root):
@@ -387,7 +388,7 @@ Can work together with Reverse Mode:
         
         # Configure column weights
         parent.columnconfigure(start_col+1, weight=1)
-        
+    
     def validate_weights(self, *args):
         """Validate that weights sum to 1.0"""
         try:
@@ -569,6 +570,10 @@ Can work together with Reverse Mode:
             if os.path.exists(script_path):
                 subprocess.run([sys.executable, script_path, "--params", temp_file])
                 self.status_var.set("Multi-strategy analysis completed")
+                # 新增：分析完釋放 DataFrame 記憶體
+                if hasattr(self, 'df'):
+                    self.df = None
+                gc.collect()
             else:
                 messagebox.showerror("Error", f"Analysis script not found: {script_path}")
             
